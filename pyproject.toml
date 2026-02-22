@@ -42,7 +42,7 @@ Repository = "https://github.com/amdouek/scry"
 Issues = "https://github.com/amdouek/scry/issues"
 
 [project.scripts]
-scry = "scry:main"
+scry = "scry.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["scry"]
