@@ -1,15 +1,31 @@
 # scry
 
-> *Peer into any Python codebase. Discover structure, extract files, export for LLMs.*
+> *Peer into any Python codebase. Discover structure, extract files, export for LLM parsing.*
 
 **scry** is a zero-dependency, single-file CLI tool that auto-discovers
 your Python project structure and lets you selectively export files for
 sharing -- in LLM chat sessions, code reviews, documentation, or
 anywhere else you need a clean, readable snapshot of your codebase.
 
+### Via pip
 ```bash
-pip install scry
+pip install scry-cli
 ```
+
+### Via pipx
+```bash
+pipx install scry-cli
+```
+
+### Direct download
+```bash
+curl -O https://raw.githubusercontent.com/amdouek/scry/main/scry/cli.py
+python cli.py --help
+```
+
+> Note: The PyPI package is `scry-cli` (the name `scry` was
+> already taken by an unrelated package). The CLI command is simply
+> `scry`.
 
 ## Why?
 Modern coding increasingly involves pasting code into LLM
@@ -23,7 +39,10 @@ will automatically discover packages, modules, config files, and project
 structure. Then export exactly the slice you need, in a format optimised for
 the recipient (be it human or machine).
 
-**Due credit** -- this tool was heavily inspired by the excellent and far more powerful `repomix` tool (https://github.com/yamadashy/repomix). `scry` was designed to be lightweight and self-contained; `repomix` is far better for most use cases involving LLMs.
+> **Due credit** -- this tool was heavily inspired by the excellent [repomix](https://github.com/yamadashy/repomix) tool. Where `repomix` is a feature-rich, 
+> comprehensive solution, `scry` is deliberately minimal: No dependencies, 
+> single-file, Python-native and designed for quick, selective 
+> exports as well as full-repo dumps.
 
 ## Quick Start
 ```bash
@@ -207,11 +226,11 @@ scry --module data_processing
 1. **Detect project root** and load `.scry.toml` if present;
 2. **Discover source packages** by checking `src/` layout, then flat layout;
 3. **Map subpackages to module names** (each subdirectory with .py files becomes a selectable module);
-4. **Detect core files** (`pyproject.toml`, `README.me`, etc.);
+4. **Detect core files** (`pyproject.toml`, `README.md`, etc.);
 5. **Scan for secrets** before any export;
 6. **Format and output** in the requested format (currently supports txt and xml).
 
-## Dependencies
+## Requirements
 - Python 3.10+
 - **Zero dependencies** - `scry` is deliberately lightweight; we use only the standard Python library
 - Optional: `tomli` for `.scry.toml` support on Python <3.11

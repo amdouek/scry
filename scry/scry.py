@@ -75,6 +75,7 @@ Configuration (optional):
 """
 
 import argparse
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -659,11 +660,12 @@ def format_output_xml(
 
     # Preamble instruction for the LLM
     parts.append("  <export_notes>")
-    parts.append(
-        f"    This is an export of the {xml_escape(project_name)} codebase. "
+    note_text = (
+        f"This is an export of the {project_name} codebase. "
         f"Each <file> element contains the full contents of one source file "
         f"wrapped in CDATA. Use the 'path' attribute to identify files."
     )
+    parts.append(f"    {cdata_wrap(note_text)}")
     parts.append("  </export_notes>")
 
     # Project structure (directory tree)
@@ -806,8 +808,6 @@ def generate_config_template(root: Path, config: dict) -> str:
     return "\n".join(lines)
 
 # ── Secret Detection ─────────────────────────────────────────────────
-
-import re
 
 # Patterns that indicate potential secrets in file contents.
 # Each entry: (name, compiled regex, description)
@@ -1031,16 +1031,25 @@ Examples:
         """,
     )
 
-    parser.add_argument(
-        "--module", "-m",
-        help="Export a specific module (use --list-modules to see available)",
+    # Selection mode (mutually exclusive)
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--module", "-m", nargs="+",
+        help="Export one or more modules (use --list-modules to see available)",
     )
-    parser.add_argument("--files", "-f", nargs="+", help="Export specific files")
-    parser.add_argument(
-        "--changed", "-c", action="store_true", help="Export git-changed files only"
+    mode_group.add_argument(
+        "--changed", "-c", action="store_true",
+        help="Export git-changed files only",
     )
+    mode_group.add_argument(
+        "--all", "-a", action="store_true",
+        help="Export all discovered Python files",
+    )
+
+    # Additive (combinable with any selection mode)
     parser.add_argument(
-        "--all", "-a", action="store_true", help="Export all discovered Python files"
+        "--files", "-f", nargs="+",
+        help="Export specific files (can be combined with --module, --changed, etc.)",
     )
     parser.add_argument(
         "--output", "-o", help="Output file path (default: print to stdout)"
@@ -1082,6 +1091,9 @@ Examples:
 
     args = parser.parse_args()
     root = args.root.resolve()
+    
+    if args.ext:
+        args.ext = [e if e.startswith(".") else f".{e}" for e in args.ext]
 
     # ── Load config ──────────────────────────────────────────────────
     config = load_config(root)
@@ -1109,6 +1121,12 @@ Examples:
         return
 
     # ── Handle --list-files ──────────────────────────────────────────
+    if args.ext and not args.list_files:
+        print(
+            "Warning: --ext has no effect without --list-files.",
+            file=sys.stderr,
+        )
+    
     if args.list_files:
         print_file_listing(root, config, project_name, extension_filter=args.ext)
         return
@@ -1137,17 +1155,16 @@ Examples:
         if not changed:
             print("No changed files detected.", file=sys.stderr)
     elif args.module:
-        if args.module in modules:
-            files_to_export.extend(modules[args.module])
-        else:
-            print(f"Error: Module '{args.module}' not found.", file=sys.stderr)
-            print(
-                f"Available: {', '.join(sorted(modules))}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-    elif args.files:
-        files_to_export.extend(args.files)
+        for mod in args.module:
+            if mod in modules:
+                files_to_export.extend(modules[mod])
+            else:
+                print(f"Error: Module '{mod}' not found.", file=sys.stderr)
+                print(
+                    f"Available: {', '.join(sorted(modules))}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
     elif args.all:
         for module_files in modules.values():
             files_to_export.extend(module_files)
@@ -1156,6 +1173,10 @@ Examples:
         if default_mod and default_mod in modules:
             files_to_export.extend(modules[default_mod])
 
+    # --files is always additive, regardless of selection mode
+    if args.files:
+        files_to_export.extend(args.files)
+
     # Deduplicate, preserving order
     seen = set()
     unique_files = []
@@ -1163,6 +1184,14 @@ Examples:
         if f not in seen:
             seen.add(f)
             unique_files.append(f)
+            
+    if not unique_files:
+        print(
+            "No files to export. Use --list-modules to see available modules, "
+            "or --all to export everything.",
+            file=sys.stderr,
+        )
+        return
             
     # ── Secret scanning ──────────────────────────────────────────────
     if not args.no_scan:
