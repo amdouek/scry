@@ -41,7 +41,6 @@ Homepage = "https://github.com/amdouek/scry"
 Repository = "https://github.com/amdouek/scry"
 Issues = "https://github.com/amdouek/scry/issues"
 
-# This is the key line — the CLI command is still `scry`
 [project.scripts]
 scry = "scry:main"
 
