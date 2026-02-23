@@ -982,8 +982,32 @@ def _line_entropy(line: str) -> float:
 
 # Minimum length and entropy thresholds for bare secret detection
 _MIN_SECRET_LENGTH = 20
-_MIN_SECRET_ENTROPY = 4.0   # Random strings generally have entropy > 4.5
+_MIN_SECRET_ENTROPY = 4.5   # Random strings generally have entropy > 4.5
 
+def _is_likely_secret(token: str) -> bool:
+    """
+    Determine whether a token looks like a secret rather than code.
+    
+    Secrets are typically long, high-entropy, and predominantly
+    alphanumeric (with occasional - _ / + =). Code contains
+    structural punctuation like . ( [ used for member access,
+    function calls, and indexing.
+    """
+    if len(token) < _MIN_SECRET_LENGTH:
+        return False
+    
+    if _line_entropy(token) < _MIN_SECRET_ENTROPY:
+        return False
+    
+    alnum_chars = sum(1 for c in token if c.isalnum() or c in "-_/+=")
+    alnum_ratio = alnum_chars / len(token)
+    if alnum_ratio < 0.90:
+        return False
+    
+    if not (any(c.isdigit() for c in token) and any(c.isalpha() for c in token)):
+        return False
+    
+    return True
 
 def scan_content_for_secrets(content: str, filepath: str) -> list[dict]:
     """
@@ -1033,12 +1057,7 @@ def scan_content_for_secrets(content: str, filepath: str) -> list[dict]:
             for token in stripped.split():
                 # Strip quotes and common delims
                 clean = token.strip("\"'`,;:=()[]{}< >")
-                if (
-                    len(clean) >= _MIN_SECRET_LENGTH
-                    and _line_entropy(clean) >= _MIN_SECRET_ENTROPY
-                    and any(c.isdigit() for c in clean)
-                    and any(c.isalpha() for c in clean)
-                ):
+                if _is_likely_secret(clean):
                     preview = stripped
                     if len(preview) > 80:
                         preview = preview[:77] + "..."
