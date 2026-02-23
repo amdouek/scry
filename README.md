@@ -9,12 +9,12 @@ anywhere else you need a clean, readable snapshot of your codebase.
 
 ### Via pip
 ```bash
-pip install scry-cli
+pip install cli-scry
 ```
 
 ### Via pipx
 ```bash
-pipx install scry-cli
+pipx install cli-scry
 ```
 
 ### Direct download
@@ -23,7 +23,7 @@ curl -O https://raw.githubusercontent.com/amdouek/scry/main/scry/cli.py
 python cli.py --help
 ```
 
-> Note: The PyPI package is `scry-cli` (the name `scry` was
+> Note: The PyPI package is `cli-scry` (the name `scry` was
 > already taken by an unrelated package). The CLI command is simply
 > `scry`.
 

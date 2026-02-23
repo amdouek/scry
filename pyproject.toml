@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "scry-cli"
+name = "cli-scry"
 version = "0.1.1"
 description = "Peer into any Python codebase. Discover structure, extract files, export for LLMs."
 readme = "README.md"
