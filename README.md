@@ -52,8 +52,11 @@ scry --list-modules
 # List every file (not just Python)
 scry --list-files
 
-# Export core files + project overview
+# View core files + project overview in terminal
 scry
+
+# Export core files + project overview
+scry -o core.txt
 
 # Export a specific module
 scry --module models
@@ -63,6 +66,8 @@ scry --changed
 
 # Export everything as LLM-optimised XML
 scry --all --format xml -o codebase.xml
+# or
+scry --all -o codebase.xml    # Auto-detects extension 
 
 # Export specific files
 scry --files src/core.py config/defaults.yaml tests/test_core.py
@@ -136,6 +141,8 @@ scry --module models -o export.txt
 **XML** - Structured, `CDATA`-wrapped, and optimised for LLM parsing:
 ```bash
 scry --all --format xml -o codebase.xml
+# or
+scry --all -o codebase.xml
 ```
 
 The XML format uses `<file path="..." language="..." size="...">`
