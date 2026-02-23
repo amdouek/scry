@@ -6,71 +6,72 @@ Auto-discovers your project structure and exports source files for easy
 sharing. Works with any Python project with zero configuration required.
 
 Usage:
+    # First pip install scry, then cd to your project root
     # Auto-discover and export core files + project overview
-        python scry.py
+        scry
 
     # Export a discovered module/subpackage
-        python scry.py --module utils
+         scry --module utils
 
     # Export specific files
-        python scry.py --files src/main.py src/config.py
+        scry --files src/main.py src/config.py
 
     # Export git-changed files only
-        python scry.py --changed
+        scry --changed
 
-    # Export as XML (optimised for LLM parsing)
-        python scry.py --format xml --all -o codebase.xml
+    # Export as XML (good for LLM parsing)
+        scry --format xml --all -o codebase.xml
 
     # List discovered modules
-        python scry.py --list-modules
+        scry --list-modules
 
     # List all project files
-        python scry.py --list-files
+        scry --list-files
 
     # List only YAML and JSON files
-        python scry.py --list-files --ext .yaml .json
+        scry --list-files --ext .yaml .json
 
     # Generate a config file for customisation
-        python scry.py --init-config
+        scry --init-config
 
 Examples/Quick Reference:
 
     # Export core files
-        python scry.py
+        scry
 
     # Export a specific module you're working on
-        python scry.py --module models
+        scry --module models
 
     # Export only files you've changed (good for debugging)
-        python scry.py --changed
+        scry --changed
 
     # Export specific files
-        python scry.py --files mypackage/models.py mypackage/utils.py
+        scry --files mypackage/models.py mypackage/utils.py
 
     # Export everything (for major refactoring discussions)
-        python scry.py --all
+        scry --all
 
     # Export as XML for LLM consumption
-        python scry.py --all --format xml -o codebase.xml
+        scry --all --format xml -o codebase.xml
 
     # Save to file instead of printing
-        python scry.py --module models --output codebase_export.txt
+        scry --module models --output codebase_export.txt
 
     # Specify a different project root
-        python scry.py --root /path/to/project
+        scry --root /path/to/project
 
     # List all auto-discovered modules
-        python scry.py --list-modules
+        scry --list-modules
 
     # List all project files (discover configs, data files, etc.)
-        python scry.py --list-files
+        scry --list-files
 
     # List only config files
-        python scry.py --list-files --ext .yaml .yml .toml .json .cfg .ini
+        scry --list-files --ext .yaml .yml .toml .json .cfg .ini
 
 Configuration (optional):
     Create a `.scry.toml` in your project root for customisation,
-    or run `python scry.py --init-config` to generate one
+    or run `scry --init-config` to generate one
     pre-populated with your discovered project structure.
 """
 
@@ -436,24 +437,49 @@ def get_git_changed_files(root: Path, extensions: set[str] | None = None) -> lis
     """Get list of files changed since last commit (staged, unstaged, untracked)."""
     if extensions is None:
         extensions = {".py"}
+        
+    changed = []
 
     try:
+        # Staged an unstaged changes versus HEAD
         result = subprocess.run(
             ["git", "diff", "--name-only", "HEAD"],
             capture_output=True, text=True, check=True, cwd=root,
         )
-        changed = result.stdout.strip().split("\n")
-
-        result2 = subprocess.run(
+        changed.extend(result.stdout.strip().split("\n"))
+    except subprocess.CalledProcessError:
+        # If HEAD doesn't exist (e.g. new repo, no commits), get staged files instead
+        try:
+            result = subprocess.run(
+                ["git", "diff", "--name-only", "--cached"],
+                capture_output=True, text=True, check=True, cwd=root,
+            )
+            changed.extend(result.stdout.strip().split("\n"))
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+        
+    try:
+        # Untracked files
+        result = subprocess.run(
             ["git", "ls-files", "--others", "--exclude-standard"],
-            capture_output=True, text=True, check=True, cwd=root,
+                capture_output=True, text=True, check=True, cwd=root,
         )
-        untracked = result2.stdout.strip().split("\n")
-
-        all_files = [f for f in changed + untracked if any(f.endswith(e) for e in extensions)]
-        return [f for f in all_files if f]
+        changed.extend(result.stdout.strip().split("\n"))
     except (subprocess.CalledProcessError, FileNotFoundError):
-        return []
+        pass
+    
+    # Filter by extension and remove empty strings
+    filtered = [f for f in changed if f and any(f.endswith(e) for e in extensions)]
+    
+    # Remove dups while preserving order
+    seen = set()
+    unique = []
+    for f in filtered:
+        if f not in seen:
+            seen.add(f)
+            unique.append(f)
+            
+    return unique
 
 
 # ── Directory Tree ───────────────────────────────────────────────────
@@ -1092,8 +1118,15 @@ Examples:
     args = parser.parse_args()
     root = args.root.resolve()
     
+    # Normalise --ext (e.g. allows "yaml" as well as ".yaml")
     if args.ext:
         args.ext = [e if e.startswith(".") else f".{e}" for e in args.ext]
+        
+    # Auto-detect format from output filename if --format not explicitly set
+    if args.output and args.format == "txt":
+        out_suffix = Path(args.output).suffix.lower()
+        if out_suffix == ".xml":
+            args.format = "xml"
 
     # ── Load config ──────────────────────────────────────────────────
     config = load_config(root)
@@ -1147,31 +1180,33 @@ Examples:
         return
 
     # ── Determine files to export ────────────────────────────────────
-    files_to_export = list(core_files)
-
     if args.changed:
+        files_to_export = []
         changed = get_git_changed_files(root, set(config["extensions"]))
         files_to_export.extend(changed)
         if not changed:
             print("No changed files detected.", file=sys.stderr)
-    elif args.module:
-        for mod in args.module:
-            if mod in modules:
-                files_to_export.extend(modules[mod])
-            else:
-                print(f"Error: Module '{mod}' not found.", file=sys.stderr)
-                print(
-                    f"Available: {', '.join(sorted(modules))}",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-    elif args.all:
-        for module_files in modules.values():
-            files_to_export.extend(module_files)
     else:
-        default_mod = config.get("default_module")
-        if default_mod and default_mod in modules:
-            files_to_export.extend(modules[default_mod])
+        files_to_export = list(core_files)
+
+        if args.module:
+            for mod in args.module:
+                if mod in modules:
+                    files_to_export.extend(modules[mod])
+                else:
+                    print(f"Error: Module '{mod}' not found.", file=sys.stderr)
+                    print(
+                        f"Available: {', '.join(sorted(modules))}",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+        elif args.all:
+            for module_files in modules.values():
+                files_to_export.extend(module_files)
+        else:
+            default_mod = config.get("default_module")
+            if default_mod and default_mod in modules:
+                files_to_export.extend(modules[default_mod])
 
     # --files is always additive, regardless of selection mode
     if args.files:
