@@ -32,7 +32,7 @@ Modern coding increasingly involves pasting code into LLM
 conversations, sharing project subsets with collaborators, or
 extracting specific modules for targeted code review. 
 The typical workflow (manually copying files, remembering paths, 
-stitching things together) is tedious and error-prone.
+stitching things together) is tedious and can be error-prone.
 
 `scry` simplifies this! Point to any Python project and it
 will automatically discover packages, modules, config files, and project 

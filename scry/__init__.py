@@ -1,7 +1,12 @@
 """scry: Peer into any Python codebase."""
 
-__version__ = "0.1.0"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("cli-scry")
+except PackageNotFoundError:
+    __version__ = "dev"
 
 from scry.cli import main
 
-__all__ = ["main"]
+__all__ = ["main", "__version__"]

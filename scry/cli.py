@@ -913,6 +913,46 @@ SECRET_PATTERNS: list[tuple[str, re.Pattern, str]] = [
         re.compile(r"SG\.[A-Za-z0-9_\-]{22}\.[A-Za-z0-9_\-]{43}"),
         "SendGrid API key detected",
     ),
+    (
+        "PyPI Token",
+        re.compile(r"pypi-[A-Za-z0-9_\-]{20,}"),
+        "PyPI API token detected",
+    ),
+    (
+        "npm Token",
+        re.compile(r"npm_[A-Za-z0-9]{36,}"),
+        "npm access token detected",
+    ),
+    (
+        "Azure Key",
+        re.compile(r"(?i)azure[_\-\s]*(?:key|secret|token|password)\s*[=:]\s*['\"]?[A-Za-z0-9+/=]{20,}['\"]?"),
+        "Azure credential detected",
+    ),
+    (
+        "Google API Key",
+        re.compile(r"AIza[0-9A-Za-z_\-]{35}"),
+        "Google API key detected",
+    ),
+    (
+        "Google OAuth",
+        re.compile(r"[0-9]+-[a-z0-9_]{32}\.apps\.googleusercontent\.com"),
+        "Google OAuth client ID detected",
+    ),
+    (
+        "Twilio Key",
+        re.compile(r"SK[0-9a-fA-F]{32}"),
+        "Twilio API key detected",
+    ),
+    (
+        "Mailgun Key",
+        re.compile(r"key-[0-9a-zA-Z]{32}"),
+        "Mailgun API key detected",
+    ),
+    (
+        "Square Token",
+        re.compile(r"sq0[a-z]{3}-[0-9A-Za-z_\-]{22,}"),
+        "Square access token detected",
+    ),
 ]
 
 # File-level patterns (the filename itself suggests secrets)
@@ -926,7 +966,23 @@ SENSITIVE_FILE_PATTERNS: list[tuple[str, re.Pattern]] = [
     ("Certificate", re.compile(r"(?i).*\.p12$")),
     ("Keystore", re.compile(r"(?i).*\.keystore$")),
     ("htpasswd", re.compile(r"(?i).*\.htpasswd$")),
+    ("Token/credential file", re.compile(r"(?i).*(?:token|key|secret|cred|auth|password).*\.txt$")),
 ]
+
+def _line_entropy(line: str) -> float:
+    """Calculate Shannon entropy of a string (bits per char)."""
+    if not line:
+        return 0.0
+    from math import log2
+    freq: dict[str,int] = {}
+    for ch in line:
+        freq[ch] = freq.get(ch, 0) + 1
+    length = len(line)
+    return -sum((c / length) * log2(c / length) for c in freq.values())
+
+# Minimum length and entropy thresholds for bare secret detection
+_MIN_SECRET_LENGTH = 20
+_MIN_SECRET_ENTROPY = 4.0   # Random strings generally have entropy > 4.5
 
 
 def scan_content_for_secrets(content: str, filepath: str) -> list[dict]:
@@ -943,15 +999,22 @@ def scan_content_for_secrets(content: str, filepath: str) -> list[dict]:
     findings = []
 
     for line_num, line in enumerate(content.splitlines(), start=1):
-        # Skip comment lines (rough heuristic — covers Python, YAML, TOML, shell)
         stripped = line.strip()
+        
+        # Skip empty lines
+        if not stripped:
+            continue
+        
+        # Skip comment lines (rough heuristic; covers Python, YAML, TOML, shell)
         if stripped.startswith("#") and "=" not in stripped and ":" not in stripped:
             continue
+        
+        matched = False
 
         for pattern_name, regex, description in SECRET_PATTERNS:
             if regex.search(line):
                 # Truncate the line for preview to avoid showing the secret
-                preview = line.strip()
+                preview = stripped
                 if len(preview) > 80:
                     preview = preview[:77] + "..."
 
@@ -962,6 +1025,32 @@ def scan_content_for_secrets(content: str, filepath: str) -> list[dict]:
                     "line_number": line_num,
                     "line_preview": preview,
                 })
+                matched = True
+                
+        # Fallback: Detect high-entropy strings that look like bare tokens
+        if not matched:
+            # Check each whitespace-delimited token on the line
+            for token in stripped.split():
+                # Strip quotes and common delims
+                clean = token.strip("\"'`,;:=()[]{}< >")
+                if (
+                    len(clean) >= _MIN_SECRET_LENGTH
+                    and _line_entropy(clean) >= _MIN_SECRET_ENTROPY
+                    and any(c.isdigit() for c in clean)
+                    and any(c.isalpha() for c in clean)
+                ):
+                    preview = stripped
+                    if len(preview) > 80:
+                        preview = preview[:77] + "..."
+                        
+                    findings.append({
+                        "pattern_name": "High-Entropy String",
+                        "description": "Possible secret or token (high entropy)",
+                        "filepath": filepath,
+                        "line_number": line_num,
+                        "line_preview": preview,
+                    })
+                    break   # One finding per line
 
     return findings
 
