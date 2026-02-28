@@ -1,11 +1,19 @@
 # scry
 
-> *Peer into any Python codebase. Discover structure, extract files, export for LLM parsing.*
+> *Peer into any Python codebase. Discover structure, extract files, export for code review and LLM parsing.*
 
 **scry** is a zero-dependency, single-file CLI tool that auto-discovers
-your Python project structure and lets you selectively export files for
-sharing -- in LLM chat sessions, code reviews, documentation, or
+project structure and lets you selectively export files for sharing:
+In LLM chat sessions, code reviews, documentation, or
 anywhere else you need a clean, readable snapshot of your codebase.
+
+> [!NOTE]
+> As of v0.1.4, the `--include-ext` flag allows you to export codebases that contain multiple languages. This can be performed on a per-run basis (`scry --list-modules --include-ext .R .sql`) or configured permanently in the .scry.toml file created by `--init-config`:
+>
+> ```toml
+> [scry]
+> extensions = [".py", ".R", ".sql", ".sh"]
+> ```
 
 ### Via pip
 ```bash
@@ -71,6 +79,9 @@ scry --all -o codebase.xml    # Auto-detects extension
 
 # Export specific files
 scry --files src/core.py config/defaults.yaml tests/test_core.py
+
+# Include non-Python files in discovery
+scry --list-modules --include-ext .R .sql
 ```
 
 ## Features
@@ -100,9 +111,10 @@ Before every export, scry scans for potential secrets (API keys,
 tokens, private keys, database credentials, and other sensitive
 patterns). Warnings are displayed before any output is written.
 
-**IMPORTANTLY**, `scry` does NOT automatically prevent secrets
-from appearing in the output. The output warnings require acknowledgement,
-but users MUST take care to ensure that sensitive info is not shared.
+> [!IMPORTANT]
+> `scry` does NOT automatically prevent secrets from appearing in the output. 
+> The output warnings require acknowledgement before the export can proceed,
+> but users MUST take care to ensure that sensitive info is not shared.
 
 An example warning:
 
@@ -122,13 +134,14 @@ An example warning:
 
 Detected patterns include:
 - AWS access keys and secret keys
-- GitHub, GitLab, and Slack tokens
+- GitHub, GitLab, Slack, PyPI, npm, Google, Azure, Twilio, Mailgun, and Square tokens
 - Stripe, SendGrid, and Heroku API keys
 - Private key blocks (RSA, EC, DSA, etc.)
 - Database connection strings with embedded credentials
 - Generic `password=`, `secret=`, `api_key=` assignments
 - JWT tokens
-- Sensitive filenames (`.env`, `.pem`, `.key`, `credentials.*`)
+- Sensitive filenames (`.env`, `.pem`, `.key`, `credentials.*`) or those containing `token`, `key`, `secret`, `cred`, or `password` (e.g. `api_token.txt`)
+- High-entropy strings that resemble tokens or keys
 
 Use --no-scan to skip if needed (but **use with caution!**).
 
@@ -228,11 +241,20 @@ scry --list-files --ext .yaml .json .toml .cfg
 scry --module data_processing
 ```
 
+### Working with a project that uses multiple languages
+```bash
+# Export R and SQL files in addition to Python (single session)
+scry --list-modules --include-ext .R .sql
+
+# Permanently configure scry to export Python, R and SQL files. Set in .scry.toml:
+# extensions = [".py", ".R", ".sql"]
+```
+
 ## How does `scry` work?
 `scry` performs the following steps:
 1. **Detect project root** and load `.scry.toml` if present;
 2. **Discover source packages** by checking `src/` layout, then flat layout;
-3. **Map subpackages to module names** (each subdirectory with .py files becomes a selectable module);
+3. **Map subpackages to module names** (each subdirectory with matching files becomes a selectable module);
 4. **Detect core files** (`pyproject.toml`, `README.md`, etc.);
 5. **Scan for secrets** before any export;
 6. **Format and output** in the requested format (currently supports txt and xml).

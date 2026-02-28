@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cli-scry"
-version = "0.1.3"
+version = "0.1.4"
 description = "Peer into any Python codebase. Discover structure, extract files, export for LLMs."
 readme = "README.md"
 license = { text = "MIT" }
@@ -40,6 +40,7 @@ legacy = ["tomli>=2.0; python_version < '3.11'"]
 Homepage = "https://github.com/amdouek/scry"
 Repository = "https://github.com/amdouek/scry"
 Issues = "https://github.com/amdouek/scry/issues"
+Changelog = "https://github.com/amdouek/scry/blob/main/CHANGELOG.md"
 
 [project.scripts]
 scry = "scry.cli:main"

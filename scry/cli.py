@@ -79,6 +79,7 @@ import argparse
 import re
 import subprocess
 import sys
+from math import log2
 from pathlib import Path
 from datetime import datetime
 from fnmatch import fnmatch
@@ -441,7 +442,7 @@ def get_git_changed_files(root: Path, extensions: set[str] | None = None) -> lis
     changed = []
 
     try:
-        # Staged an unstaged changes versus HEAD
+        # Staged and unstaged changes versus HEAD
         result = subprocess.run(
             ["git", "diff", "--name-only", "HEAD"],
             capture_output=True, text=True, check=True, cwd=root,
@@ -462,7 +463,7 @@ def get_git_changed_files(root: Path, extensions: set[str] | None = None) -> lis
         # Untracked files
         result = subprocess.run(
             ["git", "ls-files", "--others", "--exclude-standard"],
-                capture_output=True, text=True, check=True, cwd=root,
+            capture_output=True, text=True, check=True, cwd=root,
         )
         changed.extend(result.stdout.strip().split("\n"))
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -973,7 +974,6 @@ def _line_entropy(line: str) -> float:
     """Calculate Shannon entropy of a string (bits per char)."""
     if not line:
         return 0.0
-    from math import log2
     freq: dict[str,int] = {}
     for ch in line:
         freq[ch] = freq.get(ch, 0) + 1
@@ -1212,6 +1212,10 @@ Examples:
         help="Filter --list-files by extension (e.g. --ext .yaml .json)",
     )
     parser.add_argument(
+        "--include-ext", nargs="+",
+        help="Additional extensions to include in discovery (e.g., --include-ext .R .sql)",
+    )
+    parser.add_argument(
         "--init-config", action="store_true",
         help="Generate a .scry.toml configuration file and exit",
     )
@@ -1240,6 +1244,11 @@ Examples:
     config = load_config(root)
     if args.tree_depth is not None:
         config["tree_depth"] = args.tree_depth
+        
+    # ── Include additional extensions ─────────────────────────────────────────────
+    if args.include_ext:
+        extra = [e if e.startswith(".") else f".{e}" for e in args.include_ext]
+        config["extensions"] = list(set(config["extensions"] + extra))
 
     # ── Detect project structure ─────────────────────────────────────
     project_name = config.get("project_name") or detect_project_name(root)
