@@ -1,4 +1,4 @@
-"""scry: Peer into any Python codebase."""
+"""scry: Peer into any codebase."""
 
 from importlib.metadata import version, PackageNotFoundError
 

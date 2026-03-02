@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cli-scry"
-version = "0.1.4.1"
-description = "Peer into any Python codebase. Discover structure, extract files, export for LLMs."
+version = "0.1.4.2"
+description = "Peer into any codebase. Discover structure, extract files, export for LLMs."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"

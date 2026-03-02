@@ -1,26 +1,29 @@
 #!/usr/bin/env python
 """
-scry - Generic convenient python project file exporter.
+scry - Generic convenient codebase inspector/exporter.
 
 Auto-discovers your project structure and exports source files for easy
-sharing. Works with any Python project with zero configuration required.
+sharing. Initially built for Python projects, but works with any codebase
+project with zero configuration required.
 
 Usage:
-    # First pip install scry, then cd to your project root
-    # Auto-discover and export core files + project overview
+    # First `pip install cli-scry`, then cd to your project root
+    # Auto-discover and report core files + project overview in terminal
         scry
 
-    # Export a discovered module/subpackage
+    # Print contents of a specific module/subpackage in terminal
          scry --module utils
 
-    # Export specific files
+    # Print contents of specific files in terminal
         scry --files src/main.py src/config.py
 
-    # Export git-changed files only
+    # Print git-changed files only
         scry --changed
 
-    # Export as XML (good for LLM parsing)
+    # Export entire codebase as XML (good for LLM parsing)
         scry --format xml --all -o codebase.xml
+    # or (auto-detects format from output file extension)
+        scry --all -o codebase.xml
 
     # List discovered modules
         scry --list-modules
@@ -31,31 +34,28 @@ Usage:
     # List only YAML and JSON files
         scry --list-files --ext .yaml .json
 
-    # Generate a config file for customisation
+    # Generate a config file (.scry.toml) for customisation
         scry --init-config
 
 Examples/Quick Reference:
 
-    # Export core files
+    # Print core files
         scry
 
     # Export a specific module you're working on
-        scry --module models
+        scry --module models --output models.txt
 
-    # Export only files you've changed (good for debugging)
-        scry --changed
+    # Output only files you've changed (good for debugging)
+        scry --changed -o changed.txt
 
-    # Export specific files
-        scry --files mypackage/models.py mypackage/utils.py
+    # Print specific files
+        scry --files mypackage/models.py mypackage/utils.py -o code_export.txt
 
     # Export everything (for major refactoring discussions)
-        scry --all
+        scry --all -o export.txt
 
     # Export as XML for LLM consumption
-        scry --all --format xml -o codebase.xml
-
-    # Save to file instead of printing
-        scry --module models --output codebase_export.txt
+        scry --all -o codebase.xml
 
     # Specify a different project root
         scry --root /path/to/project
@@ -114,16 +114,53 @@ DEFAULT_CONFIG = {
 
 # Files considered "core" project files (checked in order of priority)
 CORE_FILE_CANDIDATES = [
+    # Python
     "pyproject.toml",
     "setup.py",
     "setup.cfg",
+    "requirements.txt",
+    "requirements-dev.txt",
+    "Pipfile",
+    "tox.ini",
+    # R
+    "DESCRIPTION",
+    "NAMESPACE",
+    ".Rprofile",
+    "renv.lock",
+    # JavaScript / TypeScript
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    # Rust
+    "Cargo.toml",
+    "Cargo.lock",
+    # Go
+    "go.mod",
+    "go.sum",
+    # Java / JVM
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    # Ruby
+    "Gemfile",
+    "Gemfile.lock",
+    # General
     "README.md",
     "README.rst",
-    "requirements.txt",
+    "README.txt",
+    "LICENSE",
+    "LICENSE.md",
+    "LICENSE.txt",
+    "CHANGELOG.md",
+    "CHANGES.md",
+    "CONTRIBUTING.md",
     "Makefile",
     "Dockerfile",
     "docker-compose.yml",
+    "docker-compose.yaml",
     ".env.example",
+    ".gitignore",
+    ".editorconfig",
 ]
 
 
@@ -1190,7 +1227,7 @@ def print_secret_warnings(findings: list[dict]) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convenient exporter for project files.",
+        description="Convenient inspector/exporter for project files.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -1199,6 +1236,7 @@ Examples:
   %(prog)s --files src/main.py        Export specific files
   %(prog)s --changed                  Export git-changed files
   %(prog)s --all                      Export all discovered files
+  %(prog)s --all --exclude "*.lock"   Export all, excluding lock files
   %(prog)s --all --format xml         Export everything as XML
   %(prog)s --list-modules             List auto-discovered modules
   %(prog)s --list-files               List all project files
@@ -1228,6 +1266,10 @@ Examples:
         help="Export specific files (can be combined with --module, --changed, etc.)",
     )
     parser.add_argument(
+        "--exclude", "-x", nargs="+",
+        help="Exclude specific files from export (applied after all other selection)",
+    )
+    parser.add_argument(
         "--output", "-o", help="Output file path (default: print to stdout)"
     )
     parser.add_argument(
@@ -1235,23 +1277,23 @@ Examples:
         help="Output format: txt (markdown-style) or xml (default: txt)",
     )
     parser.add_argument(
-        "--no-tree", action="store_true", help="Omit directory tree from output"
+        "--no-tree", "-nt", action="store_true", help="Omit directory tree from output"
     )
     parser.add_argument(
         "--root", "-r", type=Path, default=Path("."),
         help="Project root directory (default: current directory)",
     )
     parser.add_argument(
-        "--list-modules", "-l", action="store_true",
+        "--list-modules", "-lm", action="store_true",
         help="List all auto-discovered modules and exit",
     )
     parser.add_argument(
-        "--list-files", action="store_true",
+        "--list-files", "-lf", action="store_true",
         help="List all project files (grouped by directory) and exit",
     )
     parser.add_argument(
         "--ext", nargs="+",
-        help="Filter --list-files by extension (e.g. --ext .yaml .json)",
+        help="Filter --list-files by extension (e.g., --ext .yaml .json)",
     )
     parser.add_argument(
         "--include-ext", nargs="+",
@@ -1267,6 +1309,10 @@ Examples:
     parser.add_argument(
         "--no-scan", action="store_true",
         help="Skip secret detection scanning",
+    )
+    parser.add_argument(
+        "--dry-run", "-dr", action="store_true",
+        help="Show what would be exported on command execution without exporting",
     )
 
     args = parser.parse_args()
@@ -1370,6 +1416,16 @@ Examples:
     # --files is always additive, regardless of selection mode
     if args.files:
         files_to_export.extend(args.files)
+        
+    # --exclude removes specific files from the selection
+    if args.exclude:
+        files_to_export = [
+            f for f in files_to_export
+            if not any(
+                fnmatch(f, pattern) or fnmatch(Path(f).name, pattern)
+                for pattern in args.exclude
+            )
+        ]
 
     # Deduplicate, preserving order
     seen = set()
@@ -1385,6 +1441,21 @@ Examples:
             "or --all to export everything.",
             file=sys.stderr,
         )
+        return
+    
+    # Dry run handling
+    if args.dry_run:
+        total_size = 0
+        print(f"scry would export {len(unique_files)} file(s):\n")
+        for f in unique_files:
+            path = root / f
+            if path.exists():
+                size = path.stat().st_size
+                total_size += size
+                print(f"    {f:<55s} {format_file_size(size):>8s}")
+            else:
+                print(f"    {f:<55s} {'MISSING':>8s}")
+        print(f"\n  Total: {format_file_size(total_size)}")
         return
             
     # ── Secret scanning ──────────────────────────────────────────────

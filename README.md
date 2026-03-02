@@ -82,6 +82,9 @@ scry --files src/core.py config/defaults.yaml tests/test_core.py
 
 # Include non-Python files in discovery
 scry --list-modules --include-ext .R .sql
+
+# Perform an export dry-run
+scry --all --dry-run
 ```
 
 ## Features
@@ -99,11 +102,12 @@ You don't have to configure anything - just run it for your project!
 
 ### Selective Export
 ```bash
-scry --module models          # One module
-scry --module models training # Multiple modules
-scry --files src/config.yaml  # Specific files
-scry --changed                # Git-changed files only
-scry --all                    # Everything
+scry --module models                     # One module
+scry --module models training            # Multiple modules
+scry --files src/config.yaml             # Specific files
+scry --changed                           # Git-changed files only
+scry --all                               # Everything
+scry --all --exclude "*.lock" "tests/*"  # Everything except lock files and tests
 ```
 
 ### Secret Detection
@@ -239,11 +243,17 @@ scry --list-files --ext .yaml .json .toml .cfg
 
 # Export the module you want to understand
 scry --module data_processing
+
+# How big is the entire codebase?
+scry --all --dry-run
+
+# How big is the codebase excluding markdown files?
+scry --all --exclude "*.md" --dry-run
 ```
 
 ### Working with a project that uses multiple languages
 ```bash
-# Export R and SQL files in addition to Python (single session)
+# Export R and SQL files in addition to Python
 scry --list-modules --include-ext .R .sql
 
 # Permanently configure scry to export Python, R and SQL files. Set in .scry.toml:
