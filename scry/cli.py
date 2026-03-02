@@ -214,35 +214,57 @@ def _should_ignore(name: str, config: dict) -> bool:
 
 
 def discover_source_dirs(root: Path, config: dict) -> list[Path]:
-    """Discover Python source directories/packages in the project."""
+    """Discover project source directories/packages.
+    
+    For Python projects, looks for dirs with __init__.py.
+    For other languages (or mixed-language projects), looks for any dir
+    containing files matching the configured extensions.
+    """
     if config.get("source_dirs"):
         return [root / d for d in config["source_dirs"] if (root / d).is_dir()]
 
     source_dirs = []
+    extensions = set(config["extensions"])
 
+    # Check for src layout (src/package/)
     src_dir = root / "src"
     if src_dir.is_dir():
         for item in sorted(src_dir.iterdir()):
-            if item.is_dir() and (item / "__init__.py").exists():
-                source_dirs.append(item)
+            if item.is_dir() and not _should_ignore(item.name, config): 
+                # Python package (has __init__.py)
+                if (item / "__init__.py").exists():
+                    source_dirs.append(item)
+                # Non-Python source dir (contains matching files)
+                elif any(f.suffix in extensions for f in item.iterdir() if f.is_file()):
+                    source_dirs.append(item)
 
+    # Check for flat layout (package/ or R/ etc. if directly in root dir)
     for item in sorted(root.iterdir()):
         if (
             item.is_dir()
             and not _should_ignore(item.name, config)
-            and (item / "__init__.py").exists()
             and item not in source_dirs
         ):
-            source_dirs.append(item)
+            # Python package
+            if (item / "__init__.py").exists():
+                source_dirs.append(item)
+            # Any dir with matching source files
+            elif any(f.suffix in extensions for f in item.iterdir() if f.is_file()):
+                source_dirs.append(item)
 
     return source_dirs
 
 
 def discover_modules(source_dir: Path, root: Path, config: dict) -> dict[str, list[str]]:
-    """Discover submodules/subpackages within a source directory."""
+    """Discover submodules/subpackages within a source directory.
+    
+    Collects top-level files and recurses into subdirs, regardless of
+    whether or not they contain __init__.py.
+    """
     modules = {}
     extensions = set(config["extensions"])
 
+    # Collect top-level files in the dir
     top_level_files = []
     for f in sorted(source_dir.iterdir()):
         if f.is_file() and f.suffix in extensions:
@@ -252,6 +274,7 @@ def discover_modules(source_dir: Path, root: Path, config: dict) -> dict[str, li
         pkg_name = source_dir.name
         modules[pkg_name] = top_level_files
 
+    # Discover subdirs containing matching files
     for item in sorted(source_dir.iterdir()):
         if item.is_dir() and not _should_ignore(item.name, config):
             module_files = []
@@ -265,32 +288,51 @@ def discover_modules(source_dir: Path, root: Path, config: dict) -> dict[str, li
 
 
 def discover_all_modules(root: Path, config: dict) -> dict[str, list[str]]:
-    """Discover all modules across all source directories and special directories."""
+    """Discover all modules across all source directories.
+    
+    In addition to discovered source dirs, checks common special
+    dirs across multiple language ecosystems.
+    """
     all_modules = {}
     source_dirs = discover_source_dirs(root, config)
+    extensions = set(config["extensions"])
 
     for source_dir in source_dirs:
         sub_modules = discover_modules(source_dir, root, config)
         all_modules.update(sub_modules)
 
-    special_dirs = ["tests", "test", "scripts", "examples", "benchmarks", "notebooks"]
+    special_dirs = [
+        # Python
+        "tests", "test", "scripts", "examples", "benchmarks", "notebooks",
+        # R
+        "R", "man", "vignettes", "inst", "data-raw",
+        # General
+        "src", "lib", "bin", "docs", "doc", "tools", "utils",
+        "config", "configs", "resources", "assets",
+    ]
+    
     for dir_name in special_dirs:
         dir_path = root / dir_name
-        if dir_path.is_dir() and not _should_ignore(dir_name, config):
-            py_files = []
+        if (
+            dir_path.is_dir()
+            and not _should_ignore(dir_name, config)
+            and dir_name not in all_modules
+        ):
+            matching_files = []
             for f in sorted(dir_path.rglob("*")):
-                if f.is_file() and f.suffix in set(config["extensions"]):
-                    py_files.append(str(f.relative_to(root)))
-            if py_files:
-                all_modules[dir_name] = py_files
+                if f.is_file() and f.suffix in extensions:
+                    matching_files.append(str(f.relative_to(root)))
+            if matching_files:
+                all_modules[dir_name] = matching_files
 
+    # Fallback - if no modules found, collect top-level matching files
     if not all_modules:
-        top_py = []
+        top_files = []
         for f in sorted(root.iterdir()):
-            if f.is_file() and f.suffix in set(config["extensions"]) and not _should_ignore(f.name, config):
-                top_py.append(str(f.relative_to(root)))
-        if top_py:
-            all_modules["root"] = top_py
+            if f.is_file() and f.suffix in extensions and not _should_ignore(f.name, config):
+                top_files.append(str(f.relative_to(root)))
+        if top_files:
+            all_modules["root"] = top_files
 
     return all_modules
 
