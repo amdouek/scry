@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.4.1] - 2026-03-02
+- Fixed export to recognise modules outside of Python script convention (e.g. R/ for R files)
+
 ## [0.1.4] - 2026-02-28
 
 ## Improved
