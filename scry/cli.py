@@ -1296,7 +1296,7 @@ Examples:
         help="Filter --list-files by extension (e.g., --ext .yaml .json)",
     )
     parser.add_argument(
-        "--include-ext", nargs="+",
+        "--include-ext", "-i", nargs="+",
         help="Additional extensions to include in discovery (e.g., --include-ext .R .sql)",
     )
     parser.add_argument(

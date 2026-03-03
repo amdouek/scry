@@ -1,6 +1,6 @@
 # scry
 
-> *Peer into any Python codebase. Discover structure, extract files, export for code review and LLM parsing.*
+> *Peer into any codebase. Discover structure, extract files, export for code review and LLM parsing.*
 
 **scry** is a zero-dependency, single-file CLI tool that auto-discovers
 project structure and lets you selectively export files for sharing:
@@ -8,12 +8,17 @@ In LLM chat sessions, code reviews, documentation, or
 anywhere else you need a clean, readable snapshot of your codebase.
 
 > [!NOTE]
-> As of v0.1.4, the `--include-ext` flag allows you to export codebases that contain multiple languages. This can be performed on a per-run basis (`scry --list-modules --include-ext .R .sql`) or configured permanently in the .scry.toml file created by `--init-config`:
+> As of v0.1.4, the `--include-ext` flag allows you to export codebases that
+> contain multiple languages. This can be performed on a per-run 
+> basis (`scry --list-modules --include-ext .R .sql`), or configured to 
+> permanently detect other extensions in the `.scry.toml` file 
+> created by `--init-config`:
 >
 > ```toml
 > [scry]
 > extensions = [".py", ".R", ".sql", ".sh"]
 > ```
+
 
 ### Via pip
 ```bash
@@ -42,14 +47,15 @@ extracting specific modules for targeted code review.
 The typical workflow (manually copying files, remembering paths, 
 stitching things together) is tedious and can be error-prone.
 
-`scry` simplifies this! Point to any Python project and it
-will automatically discover packages, modules, config files, and project 
-structure. Then export exactly the slice you need, in a format optimised for
-the recipient (be it human or machine).
+`scry` simplifies this! Point to any project root (Python, R, multi-language
+codebases, etc.) and it will automatically discover packages, modules,
+config files, and project structure. Then export exactly the slice you
+need, in a format optimised for the recipient (be it human or machine).
 
-> **Due credit** -- this tool was heavily inspired by the excellent [repomix](https://github.com/yamadashy/repomix) tool. Where `repomix` is a feature-rich, 
-> comprehensive solution, `scry` is deliberately minimal: No dependencies, 
-> single-file, Python-native and designed for quick, selective 
+> [!TIP]
+> This tool was heavily inspired by the excellent [repomix](https://github.com/yamadashy/repomix) tool. 
+> Where `repomix` is a feature-rich, comprehensive solution, `scry` is deliberately minimal: 
+> No dependencies, single-file, Python-native and designed for quick, selective 
 > exports as well as full-repo dumps.
 
 ## Quick Start
@@ -87,18 +93,69 @@ scry --list-modules --include-ext .R .sql
 scry --all --dry-run
 ```
 
+## CLI Reference
+
+> [!NOTE]
+> Single-letter short flags can be chained (e.g., `-a -f core.py` or `-cf core.py`), but multi-letter short flags (e.g., `-lm`, `-nt`) must be provided separately. 
+
+### Selection Modes (Mutually exclusive)
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--module MODULE [...]` | `-m` | Export one or more modules (use `--list-modules` to see available) |
+| `--changed` | `-c` | Export git-changed files only (staged, unstaged, and untracked) |
+| `--all` | `-a` | Export all discovered files |
+
+### Modifiers (Combinable with any selection mode)
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--files FILE [...]` | `-f` | Add specific files to the export |
+| `--exclude PATTERN [...]` | `-x` | Exclude files matching names or glob patterns (e.g. `"*.lock"`, `"tests/*"`) |
+| `--include-ext EXT [...]` | `-i` | Include additional file extensions in discovery (e.g. `.R`, `.sql`) |
+
+### Output Options
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--output FILE` | `-o` | Write output to a file (default: print to stdout) |
+| `--format {txt,xml}` | | Output format: `txt` (markdown-style) or `xml` (default: `txt`). Auto-detected from `-o` filename. |
+| `--no-tree` | `-nt` | Omit the directory tree from output |
+| `--tree-depth N` | | Override the directory tree depth (default: 3) |
+
+### Discovery & Inspection
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--list-modules` | `-lm` | List all auto-discovered modules and exit |
+| `--list-files` | `-lf` | List all project files grouped by directory and exit |
+| `--ext EXT [...]` | `-e` | Filter `--list-files` output by extension (e.g. `.yaml`, `.json`) |
+| `--dry-run` | `-dr` | Show what would be exported without exporting |
+
+### Configuration & Security
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--init-config` | | Generate a `.scry.toml` configuration file and exit |
+| `--root DIR` | `-r` | Set the project root directory (default: current directory) |
+| `--no-scan` | | Skip secret detection scanning |
+
 ## Features
 
 ### Auto-Discovery
-`scry` understands Python project conventions out of the box:
+`scry` understands common project conventions out of the box:
 
 - Flat layout (`mypackage/` in project root)
 - Src layout (`src/mypackage/`)
 - Subpackages (automatically grouped as modules)
-- Special directories (`tests/`, `scripts/`, `examples/`, etc.)
-- Core project files (`pyproject.toml`, `README.md`, `requirements.txt`, etc.)
+- Special directories (`tests/`, `scripts/`, `examples/`, `R/`, 
+  `vignettes/`, etc.)
+- Core project files (`pyproject.toml`, `DESCRIPTION`, `README.md`, 
+  `package.json`, etc.)
 
-You don't have to configure anything - just run it for your project!
+For Python-only projects, you don't have to configure anything.
+For other languages, use `--include-ext` or set `extensions` in `.scry.toml` 
+to include the relevant file types.
 
 ### Selective Export
 ```bash
@@ -108,6 +165,14 @@ scry --files src/config.yaml             # Specific files
 scry --changed                           # Git-changed files only
 scry --all                               # Everything
 scry --all --exclude "*.lock" "tests/*"  # Everything except lock files and tests
+```
+
+### Dry Run
+Preview what would be exported before committing:
+```bash
+scry --all --dry-run                    # How big is everything?
+scry --all --exclude "*.lock" --dry-run # Without lock files?
+scry --module models training --dry-run # Just these modules?
 ```
 
 ### Secret Detection
